@@ -4,12 +4,92 @@ using namespace std;
 #define mod 1000000007
 #define ll long long int
 
-double opt_func(vector<double> values)
+// Define the neural network model
+class NeuralNetwork
 {
-    int res = 0;
-    // res = 100 * (values[0] * values[0] - values[1] * values[1]) + (1 - values[0] * values[0]);
-    res = values[0] * values[0] - values[1] * values[1];
-    return res;
+public:
+    NeuralNetwork(int input_size, int hidden_size, int output_size)
+        : input_size(input_size), hidden_size(hidden_size), output_size(output_size) {}
+
+    // Evaluate the neural network with given weights on input data
+    double evaluate(const vector<double> &weights)
+    {
+        // Example input data and target (assuming they are stored in the class)
+        vector<vector<double>> inputs = {
+            {0.5, -0.3},  // 1
+            {-0.1, 0.8},  // 1
+            {0.9, 0.1},   // 1
+            {-0.5, -0.7}, // 1
+            {0.2, 0.4},   // 1
+            {-0.6, 0.9},  // 1
+            {0.3, -0.8},  // 1
+            {-0.9, 0.6}}; // 1
+        // Linearly separable data by a line y = x
+
+        // TODO change 0.6 to array of targets
+        vector<double> targets(8, 0.999);
+
+        double total_accuracy = 0;
+
+        // Evaluate accuracy for each input
+        for (int i = 0; i < inputs.size(); ++i)
+        {
+            // TODO cahnge 0 to i
+            total_accuracy += evaluateSingle(weights, inputs[i], targets[i]);
+        }
+
+        // Compute average accuracy
+        return total_accuracy / inputs.size();
+    }
+
+private:
+    int input_size;
+    int hidden_size;
+    int output_size;
+
+    double sigmoid(double x)
+    {
+        return 1 / (1 + exp(-x));
+    }
+
+    // Evaluate accuracy for a single input
+    double evaluateSingle(const std::vector<double> &weights, const std::vector<double> &input, double target)
+    {
+        std::vector<double> hidden(hidden_size);
+        std::vector<double> output(output_size);
+
+        // Forward pass
+        for (int i = 0; i < hidden_size; ++i)
+        {
+            double sum = 0;
+            for (int j = 0; j < input_size; ++j)
+            {
+                sum += input[j] * weights[i * input_size + j];
+            }
+            hidden[i] = sigmoid(sum);
+        }
+
+        for (int i = 0; i < output_size; ++i)
+        {
+            double sum = 0;
+            for (int j = 0; j < hidden_size; ++j)
+            {
+                sum += hidden[j] * weights[hidden_size * input_size + i * hidden_size + j];
+            }
+            output[i] = sigmoid(sum);
+        }
+
+        // Compute accuracy (e.g., mean squared error)
+        double MSE = pow(target - output[0], 2);
+        return MSE;
+    }
+};
+
+NeuralNetwork nn(0, 0, 0);
+double opt_func(vector<double> values) // changing opt_func for ANN
+{
+    double accuracy = nn.evaluate(values);
+    return accuracy;
 }
 
 int find_best_teacher(vector<vector<double>> values, int opt)
@@ -69,6 +149,7 @@ vector<int> find_other_teacher(vector<vector<double>> values, int chief_teacher,
 
 int main()
 {
+    srand(time(0));
     // Step 1
     int n;
     cout << "Enter the number of students ";
@@ -79,6 +160,7 @@ int main()
     int opt;
     cout << "Select the type of optimization problem 1.Maximization 0.Minimization";
     cin >> opt;
+    opt = 0;
 
     double lb, ub;
     cout << "Enter the lower bound ";
@@ -86,19 +168,27 @@ int main()
     cout << "Enter the upper bound ";
     cin >> ub;
 
+    // ANN creation
+    int input_size = 2;
+    int hidden_size = 3;
+    int output_size = 1;
+    NeuralNetwork nn1(input_size, hidden_size, output_size);
+    nn = nn1;
+
+    m = input_size * hidden_size + hidden_size * output_size;
+
     // Step 2
+    cout << "Step 2" << endl;
     vector<vector<double>> values(n, vector<double>(m, 0));
     for (int i = 0; i < n; i++)
     {
         for (int j = 0; j < m; j++)
-        {
             cin >> values[i][j];
-        }
     }
 
     // old array
     vector<vector<double>> old_values = values;
-    int T = 5;
+    int T = 30;
     while (T--)
     {
         // Step 3
@@ -118,6 +208,13 @@ int main()
              { return opt_func(values[a]) < opt_func(values[b]); });
 
         t = other_teacher.size() + 1;
+        // cout << "t=" << t << endl;
+
+        // print the other teachers
+        // cout << "Other teachers: ";
+        // for (int i = 0; i < other_teacher.size(); i++)
+        //     cout << other_teacher[i] << " ";
+        // cout << endl;
 
         // Step 5
         cout << "Step 5" << endl;
@@ -222,10 +319,78 @@ int main()
             }
         }
 
+        // print teach_grp
+        // for (auto x : teach_grp)
+        // {
+        //     cout << x.first << endl;
+        //     for (int j = 0; j < x.second.size(); j++)
+        //         cout << x.second[j] << " ";
+        //     cout << endl;
+        // }
+
+        ////////////////////////////////////////////////////////////////////////////////////////
+        // Step modification 5.5 or 10.5
+        cout << "Modification" << endl;
+        vector<double> t_means(m, 0);
+        for (int i = 0; i < m; i++)
+        {
+            t_means[i] += values[chief_teacher][i];
+        }
+        for (int i = 0; i < other_teacher.size(); i++)
+        {
+            for (int j = 0; j < m; j++)
+            {
+                t_means[j] += values[other_teacher[i]][j];
+            }
+        }
+        for (int i = 0; i < m; i++)
+        {
+            double t_size = other_teacher.size() + 1;
+            t_means[i] /= t_size;
+        }
+
+        if (other_teacher.size() >= 1)
+        {
+            vector<double> t_diff_mean(m, 0);
+            double TF = abs(opt_func(values[other_teacher[rand() % other_teacher.size()]]) / opt_func(values[chief_teacher]));
+            for (int i = 0; i < m; i++)
+            {
+                double r = double(rand() % 100) / 100;
+                double diff = r * (values[chief_teacher][i] - TF * t_means[i]);
+                t_diff_mean.push_back(diff);
+            }
+
+            vector<double> friendo = values[other_teacher[rand() % other_teacher.size()]];
+            for (int i = 0; i < other_teacher.size(); i++)
+            {
+                if ((opt == 1 && opt_func(friendo) > opt_func(values[other_teacher[i]])) || (opt == 0 && opt_func(friendo) < opt_func(values[other_teacher[i]])))
+                {
+                    for (int j = 0; j < values[other_teacher[i]].size(); j++) // itterating over all subjects
+                    {                                                         // if student learning each subject from his random friends then switch the if and for statements
+                        double r = double(rand() % 100) / 100;
+                        values[other_teacher[i]][j] = (values[other_teacher[i]][j] + t_diff_mean[j] + r * (friendo[j] - values[other_teacher[i]][j]));
+                        // Wrong formula (CHnage to diff_mean[i][j] instead of means[stud_grp[i]][j])
+                    }
+                }
+                else
+                {
+                    for (int j = 0; j < values[other_teacher[i]].size(); j++)
+                    { // if student learning each subject from his random friends then switch the if and for statements
+                        double r = double(rand() % 100) / 100;
+                        values[other_teacher[i]][j] = (values[other_teacher[i]][j] + t_diff_mean[j] + r * (values[other_teacher[i]][j] - friendo[j]));
+                        // Wrong formula (CHnage to diff_mean[i][j] instead of means[stud_grp[i]][j])
+                    }
+                }
+            }
+        }
+        ///////////////////////////////////////////////////////////////////////////////////////
+
         // Step 6+7
         cout << "Step 6+7" << endl;
         vector<vector<double>> elite;                // elite solution of each group
         vector<vector<double>> means(groups.size()); // mean of each group
+
+        // cout << "GroupS size: " << groups.size() << endl;
 
         for (int i = 0; i < t; i++) // itterating over all teachers
         {
@@ -234,6 +399,11 @@ int main()
                 key = chief_teacher;
             else
                 key = other_teacher[i - 1];
+
+            // cout << "key=" << key << endl;
+            // cout << "n=" << n << endl;
+            // cout << "i=" << i << endl;
+            // cout << "groups size: " << groups[key].size() << endl;
 
             vector<double> elite_sol = groups[key][0]; // randomly selecting the first student as elite solution
             means[i] = groups[key][0];
@@ -345,6 +515,23 @@ int main()
             }
         }
 
+        // For Testing
+
+        // cout << "Groups" << endl;
+        // cout << "Groups size:" << groups.size() << endl;
+        // for (auto x : groups)
+        // {
+        //     cout << x.first << endl;
+        //     for (int j = 0; j < x.second.size(); j++)
+        //     {
+        //         for (int k = 0; k < x.second[j].size(); k++)
+        //             cout << x.second[j][k] << " ";
+        //         cout << endl;
+        //     }
+        //     cout << endl;
+        //     cout << endl;
+        // }
+
         // Step 10
         cout << "Step 10" << endl;
         for (int j = 0; j < values.size(); j++) // itterating over all students
@@ -396,6 +583,19 @@ int main()
                 }
             }
         }
+        // cout << "Groups size:" << groups.size() << endl;
+        // for (auto x : groups)
+        // {
+        //     cout << x.first << endl;
+        //     for (int j = 0; j < x.second.size(); j++)
+        //     {
+        //         for (int k = 0; k < x.second[j].size(); k++)
+        //             cout << x.second[j][k] << " ";
+        //         cout << endl;
+        //     }
+        //     cout << endl;
+        //     cout << endl;
+        // }
 
         // Step 11
         // Replace the worst solution of each group with an elite solution.
@@ -432,6 +632,21 @@ int main()
             }
         }
 
+        // compare the old values and the new values using mean square error
+        // double mse = 0;
+        // for (int i = 0; i < values.size(); i++)
+        // {
+        //     for (int j = 0; j < values[i].size(); j++)
+        //     {
+        //         mse += (values[i][j] - old_values[i][j]) * (values[i][j] - old_values[i][j]);
+        //     }
+        // }
+
+        // mse = mse / (values.size() * values[0].size());
+        // cout << "MSE: " << mse << endl;
+        // if (mse < 1e-2)
+        //     break;
+
         // Step 12
         // Eliminate the duplicate solutions randomly
         cout << "Step 12" << endl;
@@ -459,31 +674,37 @@ int main()
 
         old_values = new_values;
         values = new_values;
+
+        // for (int i = 0; i < values.size(); i++)
+        // {
+        //     for (int j = 0; j < values[i].size(); j++)
+        //         cout << values[i][j] << " ";
+        //     cout << opt_func(values[i]) << endl;
+        // }
     }
 
+    int chiefset_teacher = find_best_teacher(values, opt);
+
     cout << "Final values" << endl;
-    for (int i = 0; i < values.size(); i++)
-    {
-        for (int j = 0; j < values[i].size(); j++)
-            cout << values[i][j] << " ";
-        cout << endl;
-    }
+    for (int j = 0; j < values[chiefset_teacher].size(); j++)
+        cout << values[chiefset_teacher][j] << " ";
+    cout << "\nMean Square Error: " << opt_func(values[chiefset_teacher]) << endl;
 
     return 0;
 }
 
 /*
 8
-2
+9
 1
-0
-30
-1 0
-2 3
--2 4
-3 1
-4 2
-5 -1
-6 -3
-1 4
+-100
+100
+0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9
+-0.5 0.6 -0.7 0.8 -0.9 1.0 -1.1 1.2 -1.3
+0.3 -0.4 0.5 -0.6 0.7 -0.8 0.9 -1.0 1.1
+1.0 -0.9 0.8 -0.7 0.6 -0.5 0.4 -0.3 0.2
+-0.2 0.3 -0.4 0.5 -0.6 0.7 -0.8 0.9 -1.0
+0.7 -0.6 0.5 -0.4 0.3 -0.2 0.1 -0.1 0.0
+-1.0 1.1 -1.2 1.3 -1.4 1.5 -1.6 1.7 -1.8
+0.4 -0.5 0.6 -0.7 0.8 -0.9 1.0 -1.1 1.2
 */
